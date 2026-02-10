@@ -1,40 +1,57 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material'
 
 function Users() {
+  const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  function getAuth() {
+    const item = localStorage.getItem('base-shell:auth')
+    return item ? JSON.parse(item) : null
+  }
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        // 🔑 ดึง token จาก localStorage
-        let token =
-          localStorage.getItem('token') ||
-          localStorage.getItem('accessToken')
-
-        if (!token) {
+        const auth = getAuth()
+        if (!auth?.token) {
           throw new Error('No token found, please login')
         }
 
-        // ✅ ถ้า token มี Bearer ติดมาแล้ว ไม่ต้องเติมซ้ำ
-        if (token.startsWith('Bearer ')) {
-          token = token.replace('Bearer ', '')
-        }
-
-        const res = await fetch('http://localhost:3001/api/users', {
-          method: 'GET',
+        const resp = await fetch('/api/preferences/readDocument', {
+          method: 'POST',
           headers: {
-            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            authorization: auth.token,
           },
+          body: JSON.stringify({
+            collection: 'User',
+            query: {},
+          }),
         })
 
-        if (!res.ok) {
-          throw new Error(`Unauthorized (${res.status})`)
+        if (!resp.ok) {
+          throw new Error(`Error: ${resp.status}`)
         }
 
-        const data = await res.json()
-        setUsers(data)
+        const json = await resp.json()
+        setUsers(json)
       } catch (err) {
         setError(err.message)
       } finally {
@@ -47,54 +64,135 @@ function Users() {
 
   if (loading) {
     return (
-      <div style={{ padding: 24 }}>
-        Loading users...
-      </div>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <CircularProgress />
+        <Typography mt={2}>Loading users...</Typography>
+      </Box>
     )
   }
 
   if (error) {
     return (
-      <div style={{ padding: 24, color: 'red' }}>
-        {error}
-      </div>
+      <Box sx={{ minHeight: '100vh', p: 4 }}>
+        <Typography color="error">Error: {error}</Typography>
+      </Box>
     )
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Users Page</h1>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: '#f4f6f8',
+        p: 4,
+      }}
+    >
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
+        <Typography variant="h4" fontWeight="bold">
+          User Management
+        </Typography>
 
-      {users.length === 0 ? (
-        <p>No users found</p>
-      ) : (
-        <table
-          border="1"
-          cellPadding="8"
-          cellSpacing="0"
-          style={{ marginTop: 16 }}
+        <Button
+          variant="contained"
+          size="large"
+          onClick={() => navigate('/users/create')}
         >
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Username</th>
-              <th>User Level</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <tr key={user._id || user.id}>
-                <td>{user._id || user.id}</td>
-                <td>{user.userName || user.username}</td>
-                <td>{user.userLevel}</td>
-                <td>{user.userState}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+          + Add User
+        </Button>
+      </Box>
+
+      {/* Table */}
+      <TableContainer
+        component={Paper}
+        sx={{
+          borderRadius: 3,
+          boxShadow: 3,
+        }}
+      >
+        <Table>
+          <TableHead sx={{ backgroundColor: '#fafafa' }}>
+            <TableRow>
+              <TableCell><b>Username</b></TableCell>
+              <TableCell><b>Full Name</b></TableCell>
+              <TableCell><b>Email</b></TableCell>
+              <TableCell><b>Level</b></TableCell>
+              <TableCell><b>Status</b></TableCell>
+              <TableCell align="center"><b>Actions</b></TableCell>
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} align="center">
+                  No users found
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map(user => (
+                <TableRow key={user._id} hover>
+                  <TableCell>{user.userName}</TableCell>
+                  <TableCell>{user.fullName || '-'}</TableCell>
+                  <TableCell>{user.email || '-'}</TableCell>
+
+                  <TableCell>
+                    <Chip
+                      label={user.userLevel}
+                      size="small"
+                      color={user.userLevel === 'admin' ? 'primary' : 'default'}
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <Chip
+                      label={user.userState}
+                      size="small"
+                      color={user.userState === 'enable' ? 'success' : 'warning'}
+                    />
+                  </TableCell>
+
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      onClick={() => navigate(`/users/edit/${user._id}`)}
+                    >
+                      Edit
+                    </Button>
+
+                    <Button
+                      size="small"
+                      color="secondary"
+                      sx={{ ml: 1 }}
+                      onClick={() =>
+                        navigate(`/users/password/${user._id}`)
+                      }
+                    >
+                      Change Password
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
   )
 }
 

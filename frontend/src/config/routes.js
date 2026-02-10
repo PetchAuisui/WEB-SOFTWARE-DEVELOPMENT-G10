@@ -10,6 +10,8 @@ const About = lazy(() => import('../pages/About'))
 const Home = lazy(() => import('../pages/Home/Home'))
 const MyAccount = lazy(() => import('../pages/MyAccount/MyAccount'))
 const Users = lazy(() => import('../pages/Users/Users'))
+const EditUser = lazy(() => import('../pages/Users/EditUser'))
+const UserChangePassword = lazy(() => import('../pages/Users/UserChangePassword'))
 
 const routes = [
   {
@@ -71,6 +73,24 @@ const routes = [
       </AuthorizedRoute>
     ),
   },
+  {
+    path: 'users/edit/:id',
+    exact: true,
+    element: (
+      <AuthorizedRoute>
+        <EditUser />
+      </AuthorizedRoute>
+    ),
+  },
+  {
+    path: '/users/password/:id',
+    exact: true,
+    element: (
+      <AuthorizedRoute>
+        <UserChangePassword />
+      </AuthorizedRoute>
+    )
+  }
 ]
 
 export default routes

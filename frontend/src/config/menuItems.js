@@ -5,6 +5,7 @@ import {
   ChromeReaderMode,
   Dashboard as DashboardIcon,
   ExitToApp as ExitToAppIcon,
+  Group as GroupIcon,
   /* FilterList, */
   /* FormatTextdirectionRToL as RTLIcon,
   FormatTextdirectionLToR as LTRIcon, */
@@ -101,6 +102,15 @@ const getMenuItems = (props) => {
       visible: isAuthorised,
       primaryText: intl.formatMessage({ id: 'home' }),
       leftIcon: <DashboardIcon />,
+    },
+      {
+    value: '/users',
+    visible: isAuthorised,
+    primaryText: intl.formatMessage({
+      id: 'users',
+      defaultMessage: 'Users',
+    }),
+    leftIcon: <GroupIcon />,
     },
     /* {
       primaryText: intl.formatMessage({ id: 'demos', defaultMessage: 'Demos' }),

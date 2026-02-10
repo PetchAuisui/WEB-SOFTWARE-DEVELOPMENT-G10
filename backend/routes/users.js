@@ -5,152 +5,178 @@ const jwt = require('jsonwebtoken');
 const passport = require('passport');
 
 const userInit = (dbase, privateKey) => {
-    
+
+  // ======================
+  // LOGIN
+  // ======================
   router.post('/login', (req, res) => {
 
     console.log('/login =>', req.body);
 
-    const userName = req.body.userName;
-    const password = req.body.password;
+    const { userName, password } = req.body;
 
-    dbase.readDocument({ 
+    dbase.readDocument({
       collection: 'User',
-      query: JSON.stringify({ userName: userName, }),
+      query: JSON.stringify({ userName: userName }),
     }, (err, resp) => {
 
-      let user = { userName: '' }
+      let user = { userName: '' };
 
-      if (resp)  {
-        let temp = JSON.parse(resp.data)
-        if (temp.length)  user = temp[0]
-      }
-      else  {
+      if (resp) {
+        const temp = JSON.parse(resp.data);
+        if (temp.length) user = temp[0];
+      } else {
         return res.json({
           text: 'Users database error!',
           token: null,
-        })
+        });
       }
-        
-      if (user.userName == '')  {
+
+      if (user.userName === '') {
         return res.json({
           text: 'Username not found!',
           token: null,
-        })
+        });
       }
-
-      console.log('User ->', userName, password, user);
 
       bcrypt.compare(password, user.password).then(isMatch => {
 
-        if(isMatch) {
-
-          const payload = {
-            _id: user._id,
-            userName: user.userName,
-            userLevel: user.userLevel,
-            userState: user.userState,
-          }
-
-          jwt.sign(payload, privateKey, {
-
-            expiresIn: 60*60*24*1
-
-          }, (err, token) => {
-            (async () => {  
-
-              if(err) {
-                return res.json({
-                  text: 'There is some error in token!',
-                  token: null,
-                })
-              }
-              else {
-
-                let text = 'Login success!';
-                if (user.userState == 'waiting')  text = 'Your account is not confirm!';
-                return res.json({
-                  text: text,
-                  token: `Bearer ${token}`
-                })  
-
-              }
-              
-            })();   
-          });
-        }
-        else {
-
+        if (!isMatch) {
           return res.json({
             text: 'Username or password incorrect!',
             token: null,
-          })
+          });
+        }
 
-        }                  
-      }); 
-    })
+        const payload = {
+          _id: user._id,
+          userName: user.userName,
+          userLevel: user.userLevel,
+          userState: user.userState,
+        };
 
+        jwt.sign(
+          payload,
+          privateKey,
+          { expiresIn: 60 * 60 * 24 },
+          (err, token) => {
+
+            if (err) {
+              return res.json({
+                text: 'There is some error in token!',
+                token: null,
+              });
+            }
+
+            let text = 'Login success!';
+            if (user.userState === 'waiting') {
+              text = 'Your account is not confirm!';
+            }
+
+            return res.json({
+              text: text,
+              token: `Bearer ${token}`,
+            });
+          }
+        );
+      });
+    });
   });
 
-  router.get('/me', passport.authenticate('jwt', { session: false }), (req, res) => {  
-    
-    console.log('/me ->', req.user.text);
-    
-    if (!req.user.text)  {
-      return res.json({
-        _id: req.user._id,
-        displayName: req.user.userLevel,
-        userName: req.user.userName,
-        email: req.user.email,
-        text: '',
-      });
-    }
-    else  {
+  // ======================
+  // GET ME
+  // ======================
+  router.get(
+    '/me',
+    passport.authenticate('jwt', { session: false }),
+    (req, res) => {
+
+      console.log('/me ->', req.user);
+
+      if (!req.user.text) {
+        return res.json({
+          _id: req.user._id,
+          displayName: req.user.userLevel,
+          userName: req.user.userName,
+          email: req.user.email,
+          text: '',
+        });
+      }
+
       return res.json({
         text: 'Token error!',
       });
     }
+  );
 
-  });
-  
-    // GET all users
-  router.get(
-    '/',
-    passport.authenticate('jwt', { session: false }),
-    (req, res) => {
+ // ======================
+// ADMIN RESET PASSWORD
+// ======================
+router.put(
+  '/admin/reset-password/:id',
+  passport.authenticate('jwt', { session: false }),
+  async (req, res) => {
 
-      dbase.readDocument(
-        {
-          collection: 'User',
-          query: JSON.stringify({}),
-        },
-        (err, resp) => {
+    console.log('/admin/reset-password =>', req.body);
 
-          if (err || !resp) {
-            return res.status(500).json({
-              text: 'Users database error!',
-            })
-          }
-
-          let users = JSON.parse(resp.data)
-
-          // ตัด password ออกก่อนส่งกลับ
-          users = users.map(u => ({
-            _id: u._id,
-            userName: u.userName,
-            email: u.email,
-            userLevel: u.userLevel,
-            userState: u.userState,
-          }))
-
-          return res.json(users)
-        }
-      )
+    // ✅ เช็กสิทธิ์ admin
+    if (req.user.userLevel !== 'admin') {
+      return res.status(403).json({
+        text: 'Permission denied (admin only)',
+      });
     }
-  )
 
+    const userId = req.params.id;
+    const { newPassword, confirmNewPassword } = req.body;
+
+    // ✅ validate input
+    if (!newPassword || !confirmNewPassword) {
+      return res.json({
+        text: 'New password and confirm password are required!',
+      });
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      return res.json({
+        text: 'Passwords do not match!',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.json({
+        text: 'Password must be at least 8 characters!',
+      });
+    }
+
+    // ✅ hash password ใหม่
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // ✅ update password
+    dbase.updateDocument({
+      collection: 'User',
+      query: JSON.stringify({ _id: userId }),
+      data: JSON.stringify({
+        password: hashedPassword,
+        passwordUpdatedAt: new Date(),
+        forceReset: true, // (optional) ไว้บังคับ user เปลี่ยนรหัสตอน login
+      }),
+    }, (err, resp) => {
+
+      if (err) {
+        return res.json({
+          text: 'Reset password failed!',
+        });
+      }
+
+      return res.json({
+        text: 'Admin reset password successfully!',
+      });
+    });
+  }
+);
 }
 
 module.exports = {
   userInit: userInit,
   router: router,
-}
+};
