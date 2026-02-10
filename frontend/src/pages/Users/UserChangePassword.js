@@ -9,11 +9,11 @@ import {
 } from '@mui/material'
 
 function ChangePassword() {
-  const { id } = useParams()
+  const { id } = useParams() // user id
   const navigate = useNavigate()
 
-  const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -24,32 +24,52 @@ function ChangePassword() {
 
   const handleSubmit = async () => {
     try {
-      setLoading(true)
       setError(null)
+
+      // ✅ frontend validation
+      if (!newPassword || !confirmNewPassword) {
+        return setError('Please fill all fields')
+      }
+
+      if (newPassword !== confirmNewPassword) {
+        return setError('Passwords do not match')
+      }
+
+      if (newPassword.length < 8) {
+        return setError('Password must be at least 8 characters')
+      }
+
+      setLoading(true)
 
       const auth = getAuth()
       if (!auth?.token) {
         throw new Error('Please login again')
       }
 
-      const resp = await fetch('/api/users/change-password', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: auth.token,
-        },
-        body: JSON.stringify({
-          oldPassword,
-          newPassword,
-        }),
-      })
+      const resp = await fetch(
+        `/api/users/admin/reset-password/${id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: auth.token,
+          },
+          body: JSON.stringify({
+            newPassword,
+            confirmNewPassword,
+          }),
+        }
+      )
 
       const json = await resp.json()
-      if (json.text !== 'Password changed successfully!') {
-        throw new Error(json.text)
+
+      if (!resp.ok || json.text !== 'Admin reset password successfully!') {
+        throw new Error(json.text || 'Reset password failed')
       }
 
+      // ✅ success
       navigate('/users')
+
     } catch (err) {
       setError(err.message)
     } finally {
@@ -67,19 +87,10 @@ function ChangePassword() {
         alignItems: 'center',
       }}
     >
-      <Paper sx={{ p: 4, width: 400 }}>
-        <Typography variant="h5" mb={2}>
-          Change Password
+      <Paper sx={{ p: 4, width: 420 }}>
+        <Typography variant="h5" mb={2} fontWeight="bold">
+          Reset Password
         </Typography>
-
-        <TextField
-          label="Old Password"
-          type="password"
-          fullWidth
-          margin="normal"
-          value={oldPassword}
-          onChange={e => setOldPassword(e.target.value)}
-        />
 
         <TextField
           label="New Password"
@@ -88,6 +99,15 @@ function ChangePassword() {
           margin="normal"
           value={newPassword}
           onChange={e => setNewPassword(e.target.value)}
+        />
+
+        <TextField
+          label="Confirm New Password"
+          type="password"
+          fullWidth
+          margin="normal"
+          value={confirmNewPassword}
+          onChange={e => setConfirmNewPassword(e.target.value)}
         />
 
         {error && (
