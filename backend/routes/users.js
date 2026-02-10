@@ -111,6 +111,42 @@ const userInit = (dbase, privateKey) => {
     }
 
   });
+  
+    // GET all users
+  router.get(
+    '/',
+    passport.authenticate('jwt', { session: false }),
+    (req, res) => {
+
+      dbase.readDocument(
+        {
+          collection: 'User',
+          query: JSON.stringify({}),
+        },
+        (err, resp) => {
+
+          if (err || !resp) {
+            return res.status(500).json({
+              text: 'Users database error!',
+            })
+          }
+
+          let users = JSON.parse(resp.data)
+
+          // ตัด password ออกก่อนส่งกลับ
+          users = users.map(u => ({
+            _id: u._id,
+            userName: u.userName,
+            email: u.email,
+            userLevel: u.userLevel,
+            userState: u.userState,
+          }))
+
+          return res.json(users)
+        }
+      )
+    }
+  )
 
 }
 
