@@ -15,6 +15,16 @@ import {
   Typography,
 } from '@mui/material'
 
+// helper แปลงวันที่
+function formatDate(date) {
+  if (!date) return '-'
+  return new Date(date).toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 function Users() {
   const navigate = useNavigate()
   const [users, setUsers] = useState([])
@@ -118,13 +128,7 @@ function Users() {
       </Box>
 
       {/* Table */}
-      <TableContainer
-        component={Paper}
-        sx={{
-          borderRadius: 3,
-          boxShadow: 3,
-        }}
-      >
+      <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 3 }}>
         <Table>
           <TableHead sx={{ backgroundColor: '#fafafa' }}>
             <TableRow>
@@ -133,6 +137,8 @@ function Users() {
               <TableCell><b>Email</b></TableCell>
               <TableCell><b>Level</b></TableCell>
               <TableCell><b>Status</b></TableCell>
+              <TableCell><b>Created At</b></TableCell>
+              <TableCell><b>Expired At</b></TableCell>
               <TableCell align="center"><b>Actions</b></TableCell>
             </TableRow>
           </TableHead>
@@ -140,54 +146,62 @@ function Users() {
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={8} align="center">
                   No users found
                 </TableCell>
               </TableRow>
             ) : (
-              users.map(user => (
-                <TableRow key={user._id} hover>
-                  <TableCell>{user.userName}</TableCell>
-                  <TableCell>{user.fullName || '-'}</TableCell>
-                  <TableCell>{user.email || '-'}</TableCell>
+              users.map(user => {
+                const isExpired =
+                  user.expiredAt && new Date(user.expiredAt) < new Date()
 
-                  <TableCell>
-                    <Chip
-                      label={user.userLevel}
-                      size="small"
-                      color={user.userLevel === 'admin' ? 'primary' : 'default'}
-                    />
-                  </TableCell>
+                return (
+                  <TableRow key={user._id} hover>
+                    <TableCell>{user.userName}</TableCell>
+                    <TableCell>{user.fullName || '-'}</TableCell>
+                    <TableCell>{user.email || '-'}</TableCell>
 
-                  <TableCell>
-                    <Chip
-                      label={user.userState}
-                      size="small"
-                      color={user.userState === 'enable' ? 'success' : 'warning'}
-                    />
-                  </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={user.userLevel}
+                        size="small"
+                        color={user.userLevel === 'admin' ? 'primary' : 'default'}
+                      />
+                    </TableCell>
 
-                  <TableCell align="center">
-                    <Button
-                      size="small"
-                      onClick={() => navigate(`/users/edit/${user._id}`)}
-                    >
-                      Edit
-                    </Button>
+                    <TableCell>
+                      <Chip
+                        label={isExpired ? 'expired' : user.userState}
+                        size="small"
+                        color={isExpired ? 'error' : 'success'}
+                      />
+                    </TableCell>
 
-                    <Button
-                      size="small"
-                      color="secondary"
-                      sx={{ ml: 1 }}
-                      onClick={() =>
-                        navigate(`/users/password/${user._id}`)
-                      }
-                    >
-                      Change Password
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    <TableCell>{formatDate(user.dateCreate)}</TableCell>
+                    <TableCell>{formatDate(user.dateExpire)}</TableCell>
+
+                    <TableCell align="center">
+                      <Button
+                        size="small"
+                        onClick={() => navigate(`/users/edit/${user._id}`)}
+                      >
+                        Edit
+                      </Button>
+
+                      <Button
+                        size="small"
+                        color="secondary"
+                        sx={{ ml: 1 }}
+                        onClick={() =>
+                          navigate(`/users/password/${user._id}`)
+                        }
+                      >
+                        Change Password
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>
