@@ -10,6 +10,7 @@ const About = lazy(() => import('../pages/About'))
 const Home = lazy(() => import('../pages/Home/Home'))
 const MyAccount = lazy(() => import('../pages/MyAccount/MyAccount'))
 const Users = lazy(() => import('../pages/Users/Users'))
+const AddUser = lazy(() => import('../pages/Users/AddUser'))
 const EditUser = lazy(() => import('../pages/Users/EditUser'))
 const UserChangePassword = lazy(() => import('../pages/Users/UserChangePassword'))
 
@@ -70,6 +71,15 @@ const routes = [
     element: (
       <AuthorizedRoute>
         <Users />
+      </AuthorizedRoute>
+    ),
+  },
+  {
+    path: '/users/create',
+    exact: true,
+    element: (
+      <AuthorizedRoute>
+        <AddUser />
       </AuthorizedRoute>
     ),
   },
