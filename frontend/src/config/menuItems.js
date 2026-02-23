@@ -24,6 +24,7 @@ import {
 
 import allLocales from './locales'
 import allThemes from './themes'
+import SpeedIcon from '@mui/icons-material/Speed'
 
 const getMenuItems = (props) => {
   const {
@@ -111,6 +112,12 @@ const getMenuItems = (props) => {
       defaultMessage: 'Users',
     }),
     leftIcon: <GroupIcon />,
+    },
+      {
+      value: '/dashboard',
+      visible: isAuthorised,
+      primaryText: intl.formatMessage({ id: 'dashboard', defaultMessage: 'Dashboard' }),
+      leftIcon: <SpeedIcon />,
     },
     /* {
       primaryText: intl.formatMessage({ id: 'demos', defaultMessage: 'Demos' }),

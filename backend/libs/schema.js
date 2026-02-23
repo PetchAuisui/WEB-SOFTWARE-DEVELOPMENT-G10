@@ -13,7 +13,16 @@ const userSchema = new Schema({
   dateExpire: Date,
 })
 
+const deviceSchema = new Schema({
+  _id: String,
+  name: String,
+  type: String,
+  status: String,
+  script: String,
+})
+
 module.exports = {
   mongoose: mongoose,
   userSchema: userSchema,
+  deviceSchema: deviceSchema, 
 }

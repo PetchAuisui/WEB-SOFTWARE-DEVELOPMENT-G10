@@ -13,6 +13,8 @@ const Users = lazy(() => import('../pages/Users/Users'))
 const AddUser = lazy(() => import('../pages/Users/AddUser'))
 const EditUser = lazy(() => import('../pages/Users/EditUser'))
 const UserChangePassword = lazy(() => import('../pages/Users/UserChangePassword'))
+const Dashboard = lazy(() => import('../pages/Dashboard/Dashboard'))
+const Device = lazy(() => import('../pages/Dashboard/Device'))
 
 const routes = [
   {
@@ -98,6 +100,24 @@ const routes = [
     element: (
       <AuthorizedRoute>
         <UserChangePassword />
+      </AuthorizedRoute>
+    ),
+  },
+    {
+    path: '/dashboard',
+    exact: true,
+    element: (
+      <AuthorizedRoute>
+        <Dashboard />
+      </AuthorizedRoute>
+    ),
+  },
+    {
+    path: '/dashboard/:id', // รองรับทั้ง /dashboard/create และ /dashboard/123
+    exact: true,
+    element: (
+      <AuthorizedRoute>
+        <Device />
       </AuthorizedRoute>
     )
   }
