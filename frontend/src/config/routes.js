@@ -4,31 +4,27 @@ import AuthorizedRoute from '../components/AuthorizedRoute'
 import UnauthorizedRoute from '../components/UnauthorizedRoute'
 
 // -------- Public Pages --------
-const SignIn = lazy(() => import('../pages/SignIn/SignIn'))
-const SignUp = lazy(() => import('../pages/SignUp/SignUp'))
-const PasswordReset = lazy(() => import('../pages/PasswordReset/PasswordReset'))
-const About = lazy(() => import('../pages/About'))
+const SignIn         = lazy(() => import('../pages/SignIn/SignIn'))
+const SignUp         = lazy(() => import('../pages/SignUp/SignUp'))
+const PasswordReset  = lazy(() => import('../pages/PasswordReset/PasswordReset'))
+const About          = lazy(() => import('../pages/About'))
 
 // -------- Protected Pages --------
-const Home = lazy(() => import('../pages/Home/Home'))
-const MyAccount = lazy(() => import('../pages/MyAccount/MyAccount'))
-const Users = lazy(() => import('../pages/Users/Users'))
-const AddUser = lazy(() => import('../pages/Users/AddUser'))
-const EditUser = lazy(() => import('../pages/Users/EditUser'))
+const Home               = lazy(() => import('../pages/Home/Home'))
+const MyAccount          = lazy(() => import('../pages/MyAccount/MyAccount'))
+const Users              = lazy(() => import('../pages/Users/Users'))
+const AddUser            = lazy(() => import('../pages/Users/AddUser'))
+const EditUser           = lazy(() => import('../pages/Users/EditUser'))
 const UserChangePassword = lazy(() => import('../pages/Users/UserChangePassword'))
 
-// 👇 Dashboard List Page (ต้องมี)
+// Dashboard (จัดการ Add / Edit / Compare ทั้งหมดภายในไฟล์เดียว)
 const Dashboard = lazy(() => import('../pages/Dashboard/Dashboard'))
-
-// 👇 Device Page ที่คุณแยกใหม่
-const DevicePage = lazy(() => import('../pages/Device/DevicePage'))
 
 const routes = [
 
   // ==========================
   // PUBLIC ROUTES
   // ==========================
-
   {
     path: '/signin',
     element: (
@@ -61,7 +57,6 @@ const routes = [
   // ==========================
   // PROTECTED ROUTES
   // ==========================
-
   {
     path: '/home',
     element: (
@@ -112,10 +107,8 @@ const routes = [
   },
 
   // ==========================
-  // DASHBOARD SECTION
+  // DASHBOARD
   // ==========================
-
-  // 🔹 Dashboard List
   {
     path: '/dashboard',
     element: (
@@ -124,26 +117,6 @@ const routes = [
       </AuthorizedRoute>
     )
   },
-
-  // 🔹 Create Device
-  {
-    path: '/dashboard/create',
-    element: (
-      <AuthorizedRoute>
-        <DevicePage />
-      </AuthorizedRoute>
-    )
-  },
-
-  // 🔹 Edit Device
-  {
-    path: '/dashboard/:id',
-    element: (
-      <AuthorizedRoute>
-        <DevicePage />
-      </AuthorizedRoute>
-    )
-  }
 
 ]
 
