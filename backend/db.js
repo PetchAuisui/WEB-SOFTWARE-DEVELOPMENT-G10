@@ -22,6 +22,8 @@ const dbaseproject = grpc.loadPackageDefinition(packageDefinition).dbaseproject;
 const sch = {
   mongoose,
   userSchema,
+  deviceSchema,
+  historySchema,
 } = require('./libs/schema');
 
 const db = {
@@ -77,19 +79,23 @@ async function createDocument (call, cb) {
   if (base)  {    
 
     const Model = base.models[call.request.collection]
+    
+    if (!Model) {
+      console.error('Model not found for collection:', call.request.collection)
+      return cb(new Error(`Model not found for collection: ${call.request.collection}`), obj)
+    }
+    
     const data = JSON.parse(call.request.data)
     
     if (!data._id)   data._id = new mongoose.Types.ObjectId()+''
     
-    // const model = new Model(data);
-    // await model.save();
-    // obj.data = JSON.stringify({ _id: data._id})
-    // cb(null, obj);
-
-    Model.insertOne(data).then(function (resp) { 
+    Model.create(data).then(function (resp) { 
       // console.log(resp)
-      if (resp)  obj.data = JSON.stringify([resp])
+      if (resp)  obj.data = JSON.stringify([resp.toObject ? resp.toObject() : resp])
       cb(null, obj)
+    }).catch(err => {
+      console.error('createDocument error:', err)
+      cb(err, obj)
     });  
     
   }
@@ -112,6 +118,11 @@ async function readDocument (call, cb) {
   if (base)  {    
 
     const Model = base.models[call.request.collection]
+    if (!Model) {
+      console.error('Model not found for collection:', call.request.collection)
+      return cb(new Error(`Model not found for collection: ${call.request.collection}`), obj)
+    }
+    
     const query = JSON.parse(call.request.query)
 
     let populate = null
@@ -126,8 +137,11 @@ async function readDocument (call, cb) {
     if (Object.keys(query).length)  {      
       Model.findOne(query).populate(populate).select(select).then(function (resp) { 
         // console.log(resp)
-        if (resp)  obj.data = JSON.stringify([resp])
+        if (resp)  obj.data = JSON.stringify([resp.toObject ? resp.toObject() : resp])
         cb(null, obj)
+      }).catch(err => {
+        console.error('readDocument error:', err)
+        cb(err, obj)
       });  
     }
     else  {
@@ -135,6 +149,9 @@ async function readDocument (call, cb) {
         // console.log(resp)
         if (resp)  obj.data = JSON.stringify(resp)
         cb(null, obj)
+      }).catch(err => {
+        console.error('readDocument error:', err)
+        cb(err, obj)
       });  
     }
 
@@ -158,13 +175,18 @@ async function updateDocument (call, cb) {
   if (base)  {    
 
     const Model = base.models[call.request.collection]
+    if (!Model) {
+      console.error('Model not found for collection:', call.request.collection)
+      return cb(new Error(`Model not found for collection: ${call.request.collection}`), obj)
+    }
+    
     const query = JSON.parse(call.request.query)
     let data = JSON.parse(call.request.data)
 
     Model.updateOne(query, { $set: data } ).then(function (resp) { 
       // console.log('updateDocument ->', resp,);
       if (resp)  {
-        if (resp.nModified == 0 && resp.n == 0) {
+        if (resp.modifiedCount == 0 && resp.matchedCount == 0) {
           console.error('updateDocument -> error!');
         }
         obj.data = JSON.stringify(resp)
@@ -173,6 +195,9 @@ async function updateDocument (call, cb) {
       else  {
         cb(null, obj);
       }
+    }).catch(err => {
+      console.error('updateDocument error:', err)
+      cb(err, obj)
     });
 
   }
@@ -195,6 +220,11 @@ async function deleteDocument (call, cb) {
   if (base)  {    
     
     const Model = base.models[call.request.collection]
+    if (!Model) {
+      console.error('Model not found for collection:', call.request.collection)
+      return cb(new Error(`Model not found for collection: ${call.request.collection}`), obj)
+    }
+    
     const query = JSON.parse(call.request.query)
 
     Model.deleteOne(query).then(function (resp) { 
@@ -203,6 +233,9 @@ async function deleteDocument (call, cb) {
         obj.data = JSON.stringify(resp)
       }
       cb(null, obj)
+    }).catch(err => {
+      console.error('deleteDocument error:', err)
+      cb(err, obj)
     });  
 
   }
@@ -278,7 +311,9 @@ async function main ()  {
   }
   
   if (db.MainBase)  {
-    db.MainBase.model('User', sch.userSchema);      
+    db.MainBase.model('User', sch.userSchema);
+    db.MainBase.model('Device', sch.deviceSchema);
+    db.MainBase.model('History', sch.historySchema);      
   }
   else  {
     main()

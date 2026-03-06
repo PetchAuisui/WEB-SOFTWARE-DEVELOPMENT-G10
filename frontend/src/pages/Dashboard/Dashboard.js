@@ -3,11 +3,12 @@ import Page from '../../containers/Page/Page'
 import { useIntl } from 'react-intl'
 import {
   Box, Button, Typography, Divider, CircularProgress, Checkbox,
-  Paper, Chip, IconButton, Tooltip, Alert, Snackbar, Tab, Tabs,
+  Paper, Chip, IconButton, Tooltip, Alert, Snackbar,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   TextField, Select, MenuItem, FormControl, InputLabel,
   FormControlLabel, Grid, alpha,
   Accordion, AccordionSummary, AccordionDetails,
+  Tabs, Tab,
 } from '@mui/material'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import DeleteIcon            from '@mui/icons-material/Delete'
@@ -124,9 +125,15 @@ const TagRow = ({ tag, index, result, error, onChange, onDelete, onRun }) => {
           </Grid>
         </Grid>
         <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Script Engine</Typography>
-        <TextField fullWidth multiline minRows={3} size="small" value={tag.script || ''} onChange={sf('script')}
-          sx={{ mb: 1, '& .MuiOutlinedInput-root': { bgcolor: '#1e1e2e', borderRadius: 2 }, '& textarea': { fontFamily: 'monospace', fontSize: 13, color: '#cdd6f4' } }}
-        />
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <TextField fullWidth multiline minRows={3} size="small" value={tag.script || ''} onChange={sf('script')}
+            sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#1e1e2e', borderRadius: 2 }, '& textarea': { fontFamily: 'monospace', fontSize: 13, color: '#cdd6f4' } }}
+          />
+          <Button size="small" variant="outlined" startIcon={<PlayArrowIcon />} onClick={() => onRun(index)}
+            sx={{ minWidth: 80, alignSelf: 'flex-start', mt: 0.5 }}>
+            Test
+          </Button>
+        </Box>
         <Box sx={{ textAlign: 'right', mb: 2 }}>
           <Button variant="contained" color="secondary" size="small" startIcon={<PlayArrowIcon />} onClick={() => onRun(index)}>TEST SCRIPT</Button>
         </Box>
@@ -310,70 +317,248 @@ const EditPanel = ({ initDevice, isCreate, onBack, onSaved }) => {
 // DASHBOARD TAB — live widgets + mixed chart
 // ════════════════════════════════════════════════════════════════════════════
 const DashboardView = ({ devices }) => {
-  // ── เลือก series สำหรับกราฟ ──────────────────────────────────────────────
-  const [series,    setSeries]    = useState([])   // [{ deviceId, tagLabel, color }]
-  const [chartData, setChartData] = useState([])   // [{ time, 'DevName/tag': val }]
-  const [widgets,   setWidgets]   = useState([])   // [{ deviceId, tagLabel }]
-  const [liveVals,  setLiveVals]  = useState({})   // { 'deviceId/tagLabel': { value, history } }
+  // ── charts management ────────────────────────────────────────────────────
+  const [charts,   setCharts]   = useState([])   // [{ id, name, series[], chartType, chartData[] }]
+  const [widgets,  setWidgets]  = useState([])   // [{ key, label, color }]
+  const [liveVals, setLiveVals] = useState({})   // { 'deviceId/tagLabel': { value, history } }
 
   // ── add series dialog state ───────────────────────────────────────────────
-  const [selDevice, setSelDevice] = useState('')
-  const [selTag,    setSelTag]    = useState('')
-  const [chartType, setChartType] = useState('line')  // line | bar | area
+  const [selDevice,  setSelDevice]  = useState('')
+  const [selTag,     setSelTag]     = useState('')
+  const [chartType,  setChartType]  = useState('line')  // line | bar | area
+  const [chartName,  setChartName]  = useState('')
+  
+  // ── add series to chart state (separate from chart creation) ──────────────
+  const [addSeriesDevice, setAddSeriesDevice] = useState('')
+  const [addSeriesTag,    setAddSeriesTag]    = useState('')
+  
+  // ── editing state ─────────────────────────────────────────────────────────
+  const [editingChartName, setEditingChartName] = useState(null)
+  const [editingSeries,    setEditingSeries]    = useState(null)
+  const [editChartName,    setEditChartName]    = useState('')
+  const [editSeriesDevice, setEditSeriesDevice] = useState('')
+  const [editSeriesTag,    setEditSeriesTag]    = useState('')
 
   const availableTags = selDevice
     ? (devices.find(d => d._id === selDevice)?.tags || []).map(t => t.label).filter(Boolean)
     : []
+  
+  const availableTagsForSeries = addSeriesDevice
+    ? (devices.find(d => d._id === addSeriesDevice)?.tags || []).map(t => t.label).filter(Boolean)
+    : []
+  
+  const availableTagsForEdit = editSeriesDevice
+    ? (devices.find(d => d._id === editSeriesDevice)?.tags || []).map(t => t.label).filter(Boolean)
+    : []
 
-  const addSeries = () => {
-    if (!selDevice || !selTag) return
+  // ── Load charts from localStorage on mount ────────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('dashboard:charts')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        setCharts(parsed)
+        const allWidgets = parsed.flatMap(c => 
+          c.series.map(s => ({ key: s.key, label: s.label, color: s.color }))
+        )
+        setWidgets(allWidgets)
+      }
+    } catch (err) {
+      console.error('Failed to load charts:', err)
+    }
+  }, [])
+
+  // ── Save charts to localStorage whenever they change ─────────────────────
+  useEffect(() => {
+    try {
+      if (charts.length > 0) {
+        localStorage.setItem('dashboard:charts', JSON.stringify(charts))
+      }
+    } catch (err) {
+      console.error('Failed to save charts:', err)
+    }
+  }, [charts])
+
+  const createNewChart = () => {
+    if (!selDevice || !selTag || !chartName.trim()) return
     const key = `${selDevice}/${selTag}`
-    if (series.find(s => s.key === key)) return
     const dev   = devices.find(d => d._id === selDevice)
-    const color = COLORS[series.length % COLORS.length]
+    const color = COLORS[charts.length % COLORS.length]
     const label = `${dev?.name || selDevice} / ${selTag}`
-    setSeries(p => [...p, { key, deviceId: selDevice, tagLabel: selTag, label, color }])
-    setWidgets(p => [...p, { key, deviceId: selDevice, tagLabel: selTag, label, color }])
+    
+    const newChart = {
+      id: Date.now() + Math.random(),
+      name: chartName,
+      chartType,
+      series: [{ key, deviceId: selDevice, tagLabel: selTag, label, color }],
+      chartData: [],
+    }
+    setCharts(p => [...p, newChart])
+    setWidgets(p => [...p, { key, label, color }])
+    
+    // Reset form
+    setChartName('')
+    setSelDevice('')
     setSelTag('')
+    setChartType('line')
   }
 
-  const removeSeries = (key) => {
-    setSeries(p => p.filter(s => s.key !== key))
-    setWidgets(p => p.filter(w => w.key !== key))
+  const addSeriesToChart = (chartId) => {
+    if (!addSeriesDevice || !addSeriesTag) return
+    const key = `${addSeriesDevice}/${addSeriesTag}`
+    
+    setCharts(prev => prev.map(c => {
+      if (c.id !== chartId) return c
+      if (c.series.find(s => s.key === key)) return c
+      
+      const dev   = devices.find(d => d._id === addSeriesDevice)
+      const color = COLORS[c.series.length % COLORS.length]
+      const label = `${dev?.name || addSeriesDevice} / ${addSeriesTag}`
+      
+      const newSeries = { key, deviceId: addSeriesDevice, tagLabel: addSeriesTag, label, color }
+      setWidgets(p => [...p, { key, label, color }])
+      
+      return { ...c, series: [...c.series, newSeries] }
+    }))
+    setAddSeriesDevice('')
+    setAddSeriesTag('')
+  }
+
+  const removeSeries = (chartId, seriesKey) => {
+    setCharts(prev => prev.map(c => {
+      if (c.id !== chartId) return c
+      return { ...c, series: c.series.filter(s => s.key !== seriesKey) }
+    }))
+    setWidgets(p => p.filter(w => w.key !== seriesKey))
+  }
+
+  const deleteChart = (chartId) => {
+    const chart = charts.find(c => c.id === chartId)
+    if (!chart) return
+    setCharts(prev => prev.filter(c => c.id !== chartId))
+    chart.series.forEach(s => {
+      setWidgets(p => p.filter(w => w.key !== s.key))
+    })
+  }
+
+  const changeSeriesColor = (chartId, seriesKey, newColor) => {
+    setCharts(prev => prev.map(c => {
+      if (c.id !== chartId) return c
+      return {
+        ...c,
+        series: c.series.map(s => 
+          s.key === seriesKey ? { ...s, color: newColor } : s
+        )
+      }
+    }))
+    setWidgets(p => p.map(w => 
+      w.key === seriesKey ? { ...w, color: newColor } : w
+    ))
+  }
+
+  const startEditChartName = (chartId, currentName) => {
+    setEditingChartName(chartId)
+    setEditChartName(currentName)
+  }
+
+  const saveChartName = (chartId) => {
+    if (!editChartName.trim()) return
+    setCharts(prev => prev.map(c => 
+      c.id === chartId ? { ...c, name: editChartName.trim() } : c
+    ))
+    setEditingChartName(null)
+    setEditChartName('')
+  }
+
+  const cancelEditChartName = () => {
+    setEditingChartName(null)
+    setEditChartName('')
+  }
+
+  const startEditSeries = (chartId, seriesKey, deviceId, tagLabel) => {
+    setEditingSeries(seriesKey)
+    setEditSeriesDevice(deviceId)
+    setEditSeriesTag(tagLabel)
+  }
+
+  const saveSeriesEdit = (chartId, seriesKey) => {
+    if (!editSeriesDevice || !editSeriesTag) return
+    
+    const newKey = `${editSeriesDevice}/${editSeriesTag}`
+    const dev = devices.find(d => d._id === editSeriesDevice)
+    const newLabel = `${dev?.name || editSeriesDevice} / ${editSeriesTag}`
+    
+    setCharts(prev => prev.map(c => {
+      if (c.id !== chartId) return c
+      return {
+        ...c,
+        series: c.series.map(s => 
+          s.key === seriesKey ? { ...s, key: newKey, deviceId: editSeriesDevice, tagLabel: editSeriesTag, label: newLabel } : s
+        )
+      }
+    }))
+    
+    // Update widgets
+    setWidgets(p => p.map(w => 
+      w.key === seriesKey ? { ...w, key: newKey, label: newLabel } : w
+    ))
+    
+    setEditingSeries(null)
+    setEditSeriesDevice('')
+    setEditSeriesTag('')
+  }
+
+  const cancelSeriesEdit = () => {
+    setEditingSeries(null)
+    setEditSeriesDevice('')
+    setEditSeriesTag('')
+  }
+
+  const changeChartType = (chartId, newType) => {
+    setCharts(prev => prev.map(c => 
+      c.id === chartId ? { ...c, chartType: newType } : c
+    ))
   }
 
   // ── run scripts for all selected tags every 1s ───────────────────────────
-  const seriesRef = useRef(series)
-  useEffect(() => { seriesRef.current = series }, [series])
+  const chartsRef = useRef(charts)
+  useEffect(() => { chartsRef.current = charts }, [charts])
 
   useEffect(() => {
     if (!devices.length) return
     let alive = true
     const tick = async () => {
-      const cur = seriesRef.current
-      if (!cur.length) return
+      const curCharts = chartsRef.current
+      if (!curCharts.length) return
+      
       const updates = {}
-      await Promise.all(cur.map(async (s) => {
-        const dev = devices.find(d => d._id === s.deviceId)
-        const tag = dev?.tags?.find(t => t.label === s.tagLabel)
-        if (!tag?.script) return
-        try {
-          const raw   = await jsexe(tag.script)
-          const value = parseFloat(String(raw)) || 0
-          if (!alive) return
-          updates[s.key] = value
-          setLiveVals(prev => {
-            const old = prev[s.key] || { value: null, history: [] }
-            const pt  = { time: new Date().toLocaleTimeString(), value }
-            return { ...prev, [s.key]: { value: String(value), history: [...old.history, pt].slice(-60) } }
-          })
-        } catch {}
-      }))
+      await Promise.all(curCharts.flatMap(c => 
+        c.series.map(async (s) => {
+          const dev = devices.find(d => d._id === s.deviceId)
+          const tag = dev?.tags?.find(t => t.label === s.tagLabel)
+          if (!tag?.script) return
+          try {
+            const raw   = await jsexe(tag.script)
+            const value = parseFloat(String(raw)) || 0
+            if (!alive) return
+            updates[s.key] = value
+            setLiveVals(prev => {
+              const old = prev[s.key] || { value: null, history: [] }
+              const pt  = { time: new Date().toLocaleTimeString(), value }
+              return { ...prev, [s.key]: { value: String(value), history: [...old.history, pt].slice(-60) } }
+            })
+          } catch {}
+        })
+      ))
+      
       if (!alive || !Object.keys(updates).length) return
-      // append chart point
-      const pt = { time: new Date().toLocaleTimeString() }
-      cur.forEach(s => { if (updates[s.key] != null) pt[s.label] = updates[s.key] })
-      setChartData(prev => [...prev, pt].slice(-60))
+      
+      // Update chart data for each chart
+      setCharts(prev => prev.map(c => {
+        const pt = { time: new Date().toLocaleTimeString() }
+        c.series.forEach(s => { if (updates[s.key] != null) pt[s.label] = updates[s.key] })
+        return { ...c, chartData: [...c.chartData, pt].slice(-60) }
+      }))
     }
     const t = setInterval(tick, 1000); tick()
     return () => { alive = false; clearInterval(t) }
@@ -388,53 +573,59 @@ const DashboardView = ({ devices }) => {
 
   return (
     <Box sx={{ p: 3 }}>
-
-      {/* ── selector ── */}
-      <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: '1px solid #eee', mb: 3 }}>
+      {/* ── Create Chart Form ── */}
+      <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: '1px solid #eee', bgcolor: '#f9f9f9', mb: 3 }}>
         <Typography variant="subtitle2" fontWeight={700} color="text.secondary"
           sx={{ letterSpacing: 1, textTransform: 'uppercase', mb: 2 }}>
-          เลือก Device / Tag ที่ต้องการแสดงผล
+          สร้างกราฟใหม่
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Device</InputLabel>
-            <Select value={selDevice} label="Device" onChange={e => { setSelDevice(e.target.value); setSelTag('') }}>
-              {devices.map(d => <MenuItem key={d._id} value={d._id}>{d.name || d._id}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 160 }} disabled={!selDevice}>
-            <InputLabel>Tag</InputLabel>
-            <Select value={selTag} label="Tag" onChange={e => setSelTag(e.target.value)}>
-              {availableTags.map(l => <MenuItem key={l} value={l}>{l}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Chart Type</InputLabel>
-            <Select value={chartType} label="Chart Type" onChange={e => setChartType(e.target.value)}>
-              <MenuItem value="line">Line</MenuItem>
-              <MenuItem value="bar">Bar</MenuItem>
-              <MenuItem value="area">Area</MenuItem>
-            </Select>
-          </FormControl>
-          <Button variant="contained" onClick={addSeries} disabled={!selDevice || !selTag}
-            startIcon={<AddIcon />}>
-            Add to Chart
-          </Button>
-        </Box>
-
-        {/* selected series chips */}
-        {series.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
-            {series.map(s => (
-              <Chip key={s.key} label={s.label} onDelete={() => removeSeries(s.key)} size="small"
-                sx={{ bgcolor: alpha(s.color, 0.12), color: s.color, fontWeight: 700,
-                  '& .MuiChip-deleteIcon': { color: s.color } }} />
-            ))}
-          </Box>
-        )}
+        <Grid container spacing={2} alignItems="flex-end">
+          <Grid item xs={12} sm={2}>
+            <TextField 
+              fullWidth size="small" label="Chart Name *" placeholder="e.g. Temperature"
+              value={chartName} onChange={e => setChartName(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={2.5}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Device</InputLabel>
+              <Select value={selDevice} label="Device" onChange={e => { setSelDevice(e.target.value); setSelTag('') }}
+                sx={{ borderRadius: 2, bgcolor: '#fff' }}>
+                {devices.map(d => <MenuItem key={d._id} value={d._id}>{d.name || d._id}</MenuItem>)}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={2}>
+            <FormControl fullWidth size="small" disabled={!selDevice}>
+              <InputLabel>Tag</InputLabel>
+              <Select value={selTag} label="Tag" onChange={e => setSelTag(e.target.value)}
+                sx={{ borderRadius: 2, bgcolor: '#fff' }}>
+                {availableTags.map(l => <MenuItem key={l} value={l}>{l}</MenuItem>)}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Type</InputLabel>
+              <Select value={chartType} label="Type" onChange={e => setChartType(e.target.value)}
+                sx={{ borderRadius: 2, bgcolor: '#fff' }}>
+                <MenuItem value="line">Line</MenuItem>
+                <MenuItem value="bar">Bar</MenuItem>
+                <MenuItem value="area">Area</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={3}>
+            <Button fullWidth variant="contained" color="success" startIcon={<AddIcon />}
+              onClick={createNewChart} disabled={!selDevice || !selTag || !chartName.trim()}>
+              Create Chart
+            </Button>
+          </Grid>
+        </Grid>
       </Paper>
 
-      {/* ── value widgets ── */}
+      {/* ── Value Widgets ── */}
       {widgets.length > 0 && (
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
           {widgets.map(w => {
@@ -446,7 +637,11 @@ const DashboardView = ({ devices }) => {
             const min  = nums.length ? Math.min(...nums).toFixed(1) : '—'
             const avg  = nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) : '—'
             return (
-              <Paper key={w.key} elevation={0} sx={valCardSx(w.color)}>
+              <Paper key={w.key} elevation={0} sx={{
+                p: 2.5, borderRadius: 3, border: `2px solid ${w.color}`,
+                background: `linear-gradient(135deg, ${alpha(w.color, 0.08)} 0%, #fff 100%)`,
+                minWidth: 160,
+              }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <Typography variant="caption" fontWeight={700} color="text.secondary" noWrap sx={{ maxWidth: 140 }}>
                     {w.label}
@@ -470,40 +665,163 @@ const DashboardView = ({ devices }) => {
         </Box>
       )}
 
-      {/* ── mixed chart ── */}
-      <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid #eee', minHeight: 380 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Typography variant="subtitle1" fontWeight={700}>Mixed Chart</Typography>
-          <Chip size="small" label={`${series.length} series`} sx={{ ml: 1 }} />
+      {/* ── Charts ── */}
+      {charts.length === 0 ? (
+        <Box sx={{ p: 8, textAlign: 'center', border: '2px dashed #e0e0e0', borderRadius: 3, color: 'text.secondary' }}>
+          <DashboardIcon sx={{ fontSize: 56, mb: 2, opacity: 0.2 }} />
+          <Typography fontWeight={600} sx={{ mb: 1 }}>ยังไม่มีกราฟ</Typography>
+          <Typography variant="caption">สร้างกราฟจากฟอร์มด้านบน</Typography>
         </Box>
+      ) : (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
+          {charts.map(chart => (
+            <Paper key={chart.id} elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid #eee' }}>
+              {/* Chart header */}
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                  {editingChartName === chart.id ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                      <TextField
+                        size="small"
+                        value={editChartName}
+                        onChange={e => setEditChartName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveChartName(chart.id)
+                          if (e.key === 'Escape') cancelEditChartName()
+                        }}
+                        sx={{ flex: 1, '& .MuiOutlinedInput-root': { fontSize: 16, fontWeight: 700 } }}
+                        autoFocus
+                      />
+                      <IconButton size="small" onClick={() => saveChartName(chart.id)} sx={{ color: '#2e7d32' }}>
+                        <CheckCircleIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={cancelEditChartName} sx={{ color: '#d32f2f' }}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <>
+                      <Typography variant="subtitle1" fontWeight={700} sx={{ cursor: 'pointer' }} onClick={() => startEditChartName(chart.id, chart.name)}>
+                        {chart.name}
+                      </Typography>
+                      <EditIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'pointer', ml: 0.5 }} onClick={() => startEditChartName(chart.id, chart.name)} />
+                    </>
+                  )}
+                  <Chip size="small" label={`${chart.series.length} series`} />
+                </Box>
+                <Tooltip title="Delete Chart">
+                  <IconButton size="small" onClick={() => deleteChart(chart.id)} sx={{ color: '#d32f2f' }}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
 
-        {series.length === 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, color: 'text.secondary' }}>
-            <DashboardIcon sx={{ fontSize: 56, mb: 1.5, opacity: 0.15 }} />
-            <Typography fontWeight={600}>เลือก Device / Tag ด้านบน</Typography>
-            <Typography variant="caption">แล้วกด "Add to Chart" เพื่อเริ่มแสดงกราฟ real-time</Typography>
-          </Box>
-        ) : chartData.length < 2 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <ResponsiveContainer width="100%" height={320}>
-            <ComposedChart data={chartData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} width={38} />
-              <ReTip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-              <Legend />
-              {series.map((s, i) => {
-                if (chartType === 'bar')  return <Bar  key={s.key} dataKey={s.label} fill={s.color} radius={[4,4,0,0]} />
-                if (chartType === 'area') return <Area key={s.key} type="monotone" dataKey={s.label} stroke={s.color} fill={s.color} fillOpacity={0.15} strokeWidth={2} dot={false} connectNulls />
-                return <Line key={s.key} type="monotone" dataKey={s.label} stroke={s.color} strokeWidth={2.5} dot={false} connectNulls activeDot={{ r: 5 }} isAnimationActive={false} />
-              })}
-            </ComposedChart>
-          </ResponsiveContainer>
-        )}
-      </Paper>
+              {/* Series management */}
+              <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
+                <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mb: 1 }}>Series</Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5, alignItems: 'center' }}>
+                  {chart.series.map(s => (
+                    editingSeries === s.key ? (
+                      <Box key={s.key} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#fff', p: 1, borderRadius: 1, border: '1px solid #ddd', minWidth: 300 }}>
+                        <Box component="input" type="color" value={s.color} onChange={e => changeSeriesColor(chart.id, s.key, e.target.value)} 
+                          sx={{ width: 28, height: 28, border: 'none', borderRadius: '4px', cursor: 'pointer', p: 0 }} />
+                        <FormControl size="small" sx={{ minWidth: 100, flex: 1 }}>
+                          <InputLabel>Device</InputLabel>
+                          <Select value={editSeriesDevice} label="Device" onChange={e => { setEditSeriesDevice(e.target.value); setEditSeriesTag('') }}>
+                            {devices.map(d => <MenuItem key={d._id} value={d._id}>{d.name || d._id}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ minWidth: 100, flex: 1 }} disabled={!editSeriesDevice}>
+                          <InputLabel>Tag</InputLabel>
+                          <Select value={editSeriesTag} label="Tag" onChange={e => setEditSeriesTag(e.target.value)}>
+                            {availableTagsForEdit.map(l => <MenuItem key={l} value={l}>{l}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                        <IconButton size="small" onClick={() => saveSeriesEdit(chart.id, s.key)} sx={{ color: '#2e7d32' }}>
+                          <CheckCircleIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" onClick={cancelSeriesEdit} sx={{ color: '#d32f2f' }}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ) : (
+                      <Box key={s.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: '#fff', p: 0.5, borderRadius: 1, border: '1px solid #ddd' }}>
+                        <Box component="input" type="color" value={s.color} onChange={e => changeSeriesColor(chart.id, s.key, e.target.value)} 
+                          sx={{ width: 28, height: 28, border: 'none', borderRadius: '4px', cursor: 'pointer', p: 0 }} />
+                        <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 600, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {s.label}
+                        </Typography>
+                        <IconButton size="small" onClick={() => startEditSeries(chart.id, s.key, s.deviceId, s.tagLabel)} sx={{ p: 0.3, color: '#1976d2', '&:hover': { bgcolor: alpha('#1976d2', 0.1) } }}>
+                          <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => removeSeries(chart.id, s.key)} sx={{ p: 0.3, color: '#d32f2f', '&:hover': { bgcolor: alpha('#d32f2f', 0.1) } }}>
+                          <DeleteIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Box>
+                    )
+                  ))}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                  <FormControl size="small" sx={{ minWidth: 100, flex: 0.5 }}>
+                    <InputLabel>Device</InputLabel>
+                    <Select 
+                      value={addSeriesDevice} 
+                      label="Device" 
+                      onChange={e => { setAddSeriesDevice(e.target.value); setAddSeriesTag('') }}
+                    >
+                      {devices.map(d => <MenuItem key={d._id} value={d._id}>{d.name || d._id}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 100, flex: 1 }} disabled={!addSeriesDevice}>
+                    <InputLabel>Tag</InputLabel>
+                    <Select 
+                      value={addSeriesTag} 
+                      label="Tag" 
+                      onChange={e => setAddSeriesTag(e.target.value)}
+                    >
+                      {availableTagsForSeries.map(l => <MenuItem key={l} value={l}>{l}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    onClick={() => addSeriesToChart(chart.id)}
+                    disabled={!addSeriesTag}
+                  >
+                    Add
+                  </Button>
+                </Box>
+              </Box>
+
+              {/* Chart */}
+              {chart.series.length === 0 ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 250, color: 'text.secondary' }}>
+                  <Typography variant="body2">No series selected</Typography>
+                </Box>
+              ) : chart.chartData.length < 2 ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 250 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <ComposedChart data={chart.chartData} margin={{ top: 4, right: 15, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="time" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10 }} width={32} />
+                    <ReTip contentStyle={{ borderRadius: 8, fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {chart.series.map((s) => {
+                      if (chart.chartType === 'bar')  return <Bar  key={s.key} dataKey={s.label} fill={s.color} radius={[4,4,0,0]} />
+                      if (chart.chartType === 'area') return <Area key={s.key} type="monotone" dataKey={s.label} stroke={s.color} fill={s.color} fillOpacity={0.15} strokeWidth={2} dot={false} connectNulls />
+                      return <Line key={s.key} type="monotone" dataKey={s.label} stroke={s.color} strokeWidth={2} dot={false} connectNulls activeDot={{ r: 4 }} isAnimationActive={false} />
+                    })}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </Paper>
+          ))}
+        </Box>
+      )}
     </Box>
   )
 }
