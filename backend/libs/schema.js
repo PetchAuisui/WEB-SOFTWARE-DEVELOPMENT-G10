@@ -13,16 +13,65 @@ const userSchema = new Schema({
   dateExpire: Date,
 })
 
+// --- โครงสร้าง Tag แบบเต็มรูป ---
+const tagSchema = new Schema({
+  label: String,
+  script: String,
+  updateInterval: String, 
+  record: Boolean,
+  sync: Boolean,
+  api: Boolean,
+  line: Boolean,
+  email: Boolean,
+  // ส่วนของ Alarm
+  alarm: String,
+  spLow: String,
+  spHigh: String,
+  critical: String,
+  title: String,
+  alert: String,
+  description: String,
+  x: Number, // เก็บตำแหน่งแกน X แนวนอน
+  y: Number  // เก็บตำแหน่งแกน Y แนวตั้ง
+})
+
+// --- โครงสร้าง Device แบบเต็มรูป ---
 const deviceSchema = new Schema({
   _id: String,
+  code: String,
+  connection: String,
+  model: String,
+  ipAddr: String,
   name: String,
-  type: String,
+  remark: String,
+  apiCode: String,
+  lineChannel: String,
+  lineId: String,
+  emailFrom: String,
+  emailPwd: String,
+  emailTo: String,
   status: String,
-  script: String,
+  revision: Number, 
+  tags: [tagSchema],
+  showChart: Boolean, // เปิดกราฟทิ้งไว้
+  chartX: Number,     // พิกัดแกน X ของกราฟ
+  chartY: Number,     // พิกัดแกน Y ของกราฟ 
+  showDatetime: Boolean, 
+  datetimeX: Number,     
+  datetimeY: Number
+})
+
+// --- [เพิ่มใหม่] โครงสร้างตารางสำหรับเก็บประวัติย้อนหลัง (History Data) ---
+const historySchema = new Schema({
+  deviceId: String,   // รหัสอุปกรณ์
+  date: String,       // วันที่บันทึก (เช่น "2026-02-23")
+  time: String,       // เวลาที่บันทึก (เช่น "14:30:00")
+  tagsData: Object    // เก็บค่าเซนเซอร์ทั้งหมดในเวลานั้น (เช่น { "Tag1": 25.4, "Tag2": 50 })
 })
 
 module.exports = {
   mongoose: mongoose,
   userSchema: userSchema,
-  deviceSchema: deviceSchema, 
+  deviceSchema: deviceSchema,
+  historySchema: historySchema
 }
