@@ -125,18 +125,9 @@ const TagRow = ({ tag, index, result, error, onChange, onDelete, onRun }) => {
           </Grid>
         </Grid>
         <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Script Engine</Typography>
-        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-          <TextField fullWidth multiline minRows={3} size="small" value={tag.script || ''} onChange={sf('script')}
-            sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#1e1e2e', borderRadius: 2 }, '& textarea': { fontFamily: 'monospace', fontSize: 13, color: '#cdd6f4' } }}
-          />
-          <Button size="small" variant="outlined" startIcon={<PlayArrowIcon />} onClick={() => onRun(index)}
-            sx={{ minWidth: 80, alignSelf: 'flex-start', mt: 0.5 }}>
-            Test
-          </Button>
-        </Box>
-        <Box sx={{ textAlign: 'right', mb: 2 }}>
-          <Button variant="contained" color="secondary" size="small" startIcon={<PlayArrowIcon />} onClick={() => onRun(index)}>TEST SCRIPT</Button>
-        </Box>
+        <TextField fullWidth multiline minRows={3} size="small" value={tag.script || ''} onChange={sf('script')}
+          sx={{ mb: 1, '& .MuiOutlinedInput-root': { bgcolor: '#1e1e2e', borderRadius: 2 }, '& textarea': { fontFamily: 'monospace', fontSize: 13, color: '#cdd6f4' } }}
+        />
         <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>Console Output</Typography>
         <Box sx={{ p: 1.5, bgcolor: '#1e1e2e', borderRadius: 2, minHeight: 48, mb: 2, display: 'flex', alignItems: 'center' }}>
           {error
@@ -677,8 +668,8 @@ const DashboardView = ({ devices }) => {
           {charts.map(chart => (
             <Paper key={chart.id} elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid #eee' }}>
               {/* Chart header */}
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 200 }}>
                   {editingChartName === chart.id ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
                       <TextField
@@ -709,11 +700,21 @@ const DashboardView = ({ devices }) => {
                   )}
                   <Chip size="small" label={`${chart.series.length} series`} />
                 </Box>
-                <Tooltip title="Delete Chart">
-                  <IconButton size="small" onClick={() => deleteChart(chart.id)} sx={{ color: '#d32f2f' }}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FormControl size="small" sx={{ minWidth: 100 }}>
+                    <InputLabel>Chart Type</InputLabel>
+                    <Select value={chart.chartType || 'line'} label="Chart Type" onChange={e => changeChartType(chart.id, e.target.value)}>
+                      <MenuItem value="line">Line</MenuItem>
+                      <MenuItem value="bar">Bar</MenuItem>
+                      <MenuItem value="area">Area</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Tooltip title="Delete Chart">
+                    <IconButton size="small" onClick={() => deleteChart(chart.id)} sx={{ color: '#d32f2f' }}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
 
               {/* Series management */}
